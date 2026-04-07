@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { gerenteOrAdmin } from "@/lib/permissions";
 import { auditLog } from "@/lib/audit";
-type Profile = "ADMIN" | "GERENTE" | "FINANCEIRO" | "VENDEDOR" | "ESTOQUE";
+import type { Profile } from "@prisma/client";
 
 export async function GET(request: NextRequest) {
   const session = await getSession(request);

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { vendedorOrAbove } from "@/lib/permissions";
-type PaymentMethod = "CASH" | "CARD" | "PIX";
+import type { PaymentMethod } from "@prisma/client";
 
 const PAYMENT_METHODS: PaymentMethod[] = ["CASH", "CARD", "PIX"];
 
