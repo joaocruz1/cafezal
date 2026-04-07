@@ -52,10 +52,11 @@ export async function GET(request: NextRequest) {
   let cashBalance = 0;
   if (openCash) {
     const opening = Number(openCash.openingBalance);
-    const totalIn = openCash.cashMovements
+    const movements = openCash.cashMovements as { type: string; amount: unknown }[];
+    const totalIn = movements
       .filter((m) => m.type === "SALE" || m.type === "MANUAL_IN")
       .reduce((s, m) => s + Number(m.amount), 0);
-    const totalOut = openCash.cashMovements
+    const totalOut = movements
       .filter((m) => m.type === "MANUAL_OUT")
       .reduce((s, m) => s + Number(m.amount), 0);
     cashBalance = opening + totalIn - totalOut;
