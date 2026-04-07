@@ -1,0 +1,185 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Profile {
+  ADMIN
+  GERENTE
+  FINANCEIRO
+  VENDEDOR
+  ESTOQUE
+}
+
+enum OrderStatus {
+  OPEN
+  FINALIZED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  PIX
+}
+
+enum CashRegisterStatus {
+  OPEN
+  CLOSED
+}
+
+enum CashMovementType {
+  SALE
+  MANUAL_IN
+  MANUAL_OUT
+}
+
+enum StockMovementType {
+  SALE
+  SALE_REVERT
+  ADJUSTMENT
+}
+
+model User {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String    @unique
+  passwordHash String
+  name         String
+  profile      Profile   @default(VENDEDOR)
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  ordersOpened         Order[]         @relation("OrderOpenedBy")
+  ordersCancelled      Order[]         @relation("OrderCancelledBy")
+  cashRegistersOpened  CashRegister[]  @relation("CashRegisterOpenedBy")
+  cashRegistersClosed  CashRegister[]  @relation("CashRegisterClosedBy")
+  cashMovements        CashMovement[]
+  stockMovements       StockMovement[]
+  auditLogs            AuditLog[]
+}
+
+model CoffeeHarvest {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String
+  year        Int
+  pricePerKg  Decimal  @db.Decimal(10, 2)
+  kgPerBag    Decimal  @db.Decimal(10, 2)
+  minStockKg  Decimal  @default(0) @db.Decimal(10, 2)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  orderItems     OrderItem[]
+  stockMovements StockMovement[]
+}
+
+model SystemSetting {
+  id    String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key   String @unique
+  value String
+}
+
+model Order {
+  id                String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  identifier        String
+  status            OrderStatus @default(OPEN)
+  openedAt          DateTime    @default(now())
+  finalizedAt       DateTime?
+  cancelledAt       DateTime?
+  cancelReason      String?
+  openedByUserId    String      @db.Uuid
+  cancelledByUserId String?     @db.Uuid
+  total             Decimal?    @db.Decimal(10, 2)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  openedByUser    User         @relation("OrderOpenedBy", fields: [openedByUserId], references: [id], onDelete: Restrict)
+  cancelledByUser User?         @relation("OrderCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: SetNull)
+  items           OrderItem[]
+  payments        Payment[]
+  cashMovements   CashMovement[]
+}
+
+model OrderItem {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId     String   @db.Uuid
+  safraId     String   @db.Uuid
+  quantityKg  Decimal  @db.Decimal(10, 2)
+  bags        Int      @default(0)
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  observation String?
+  createdAt   DateTime @default(now())
+
+  order Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  safra CoffeeHarvest @relation(fields: [safraId], references: [id], onDelete: Restrict)
+}
+
+model Payment {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId       String        @db.Uuid
+  paymentMethod PaymentMethod
+  amount        Decimal       @db.Decimal(10, 2)
+  changeGiven   Decimal?      @db.Decimal(10, 2)
+  createdAt     DateTime     @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+}
+
+model CashRegister {
+  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  openedAt        DateTime           @default(now())
+  closedAt        DateTime?
+  openingBalance  Decimal            @db.Decimal(10, 2)
+  closingBalance  Decimal?           @db.Decimal(10, 2)
+  openedByUserId  String             @db.Uuid
+  closedByUserId  String?            @db.Uuid
+  status          CashRegisterStatus @default(OPEN)
+
+  openedByUser  User           @relation("CashRegisterOpenedBy", fields: [openedByUserId], references: [id], onDelete: Restrict)
+  closedByUser  User?          @relation("CashRegisterClosedBy", fields: [closedByUserId], references: [id], onDelete: SetNull)
+  cashMovements CashMovement[]
+}
+
+model CashMovement {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cashRegisterId   String           @db.Uuid
+  type             CashMovementType
+  amount           Decimal          @db.Decimal(10, 2)
+  description      String?
+  orderId          String?          @db.Uuid
+  createdByUserId  String           @db.Uuid
+  createdAt        DateTime         @default(now())
+
+  cashRegister  CashRegister @relation(fields: [cashRegisterId], references: [id], onDelete: Restrict)
+  order         Order?       @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  createdByUser User         @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+}
+
+model StockMovement {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  safraId         String           @db.Uuid
+  quantityKg      Decimal          @db.Decimal(10, 2)
+  type            StockMovementType
+  reason          String?
+  createdByUserId String           @db.Uuid
+  createdAt       DateTime         @default(now())
+
+  safra         CoffeeHarvest @relation(fields: [safraId], references: [id], onDelete: Restrict)
+  createdByUser User           @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+}
+
+model AuditLog {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String?  @db.Uuid
+  action     String
+  entityType String
+  entityId   String?
+  summary    String?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
