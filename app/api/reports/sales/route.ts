@@ -32,6 +32,6 @@ export async function GET(request: NextRequest) {
     orderBy: { finalizedAt: "asc" },
   });
 
-  const total = orders.reduce((s, o) => s + Number(o.total ?? 0), 0);
+  const total = orders.reduce((s: number, o: { total: unknown }) => s + Number(o.total ?? 0), 0);
   return NextResponse.json({ orders, total });
 }

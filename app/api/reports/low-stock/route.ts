@@ -14,13 +14,13 @@ export async function GET(request: NextRequest) {
     where: { active: true },
   });
   const withStock = await Promise.all(
-    safras.map(async (s) => ({
+    safras.map(async (s: typeof safras[number]) => ({
       ...s,
       currentStockKg: await getCurrentStockKg(s.id),
     }))
   );
   const low = withStock.filter(
-    (s) =>
+    (s: { minStockKg: unknown; currentStockKg: number }) =>
       Number(s.minStockKg) > 0 && s.currentStockKg <= Number(s.minStockKg)
   );
   return NextResponse.json(low);

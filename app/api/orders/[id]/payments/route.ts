@@ -38,7 +38,7 @@ export async function POST(
       return NextResponse.json({ error: "Informe ao menos um pagamento" }, { status: 400 });
     }
 
-    const existingTotal = order.payments.reduce((s, p) => s + Number(p.amount), 0);
+    const existingTotal = order.payments.reduce((s: number, p: { amount: unknown }) => s + Number(p.amount), 0);
     let newTotal = 0;
     const toCreate: { paymentMethod: PaymentMethod; amount: number; changeGiven?: number }[] = [];
 
@@ -64,7 +64,7 @@ export async function POST(
 
     const requireOpenCash = await prisma.systemSetting
       .findUnique({ where: { key: "requireOpenCashToSell" } })
-      .then((s) => s?.value !== "false");
+      .then((s: { value: string } | null) => s?.value !== "false");
     const openCash = await prisma.cashRegister.findFirst({ where: { status: "OPEN" } });
     if (requireOpenCash && !openCash) {
       return NextResponse.json(

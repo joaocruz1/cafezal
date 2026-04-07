@@ -48,7 +48,7 @@ export async function POST(
 
     const stockRule = await prisma.systemSetting
       .findUnique({ where: { key: "stockDeductionRule" } })
-      .then((s) => s?.value ?? "on_pay");
+      .then((s: { value: string } | null) => s?.value ?? "on_pay");
     if (stockRule === "on_add") {
       const deduct = await deductStock({
         safraId: safra.id,

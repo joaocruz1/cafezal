@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
     bySafra[id].revenue += Number(i.unitPrice) * qtyKg;
   }
   const list = Object.entries(bySafra)
-    .map(([id, d]) => ({ safraId: id, ...d }))
+    .map(([id, d]: [string, { name: string; quantityKg: number; bags: number; revenue: number }]) => ({ safraId: id, ...d }))
     .sort((a, b) => b.quantityKg - a.quantityKg)
     .slice(0, limit);
   return NextResponse.json(list);

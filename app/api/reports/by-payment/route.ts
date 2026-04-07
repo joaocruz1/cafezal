@@ -30,6 +30,6 @@ export async function GET(request: NextRequest) {
     const key = p.paymentMethod;
     byMethod[key] = (byMethod[key] ?? 0) + Number(p.amount);
   }
-  const total = payments.reduce((s, p) => s + Number(p.amount), 0);
+  const total = payments.reduce((s: number, p: { amount: unknown }) => s + Number(p.amount), 0);
   return NextResponse.json({ byMethod, total });
 }

@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
     cashStatus: openCash ? "OPEN" : "CLOSED",
     cashBalance,
     last7Days,
-    recentOrders: recentOrders.map((o) => ({
+    recentOrders: recentOrders.map((o: { id: string; identifier: string; status: string; total: unknown; openedAt: Date }) => ({
       ...o,
       total: o.total ? Number(o.total) : null,
     })),

@@ -21,13 +21,13 @@ export async function PATCH(
   if (!order || order.status !== "OPEN") {
     return NextResponse.json({ error: "Comanda não encontrada ou não está aberta" }, { status: 400 });
   }
-  const item = order.items.find((i) => i.id === itemId);
+  const item = order.items.find((i: { id: string }) => i.id === itemId);
   if (!item) {
     return NextResponse.json({ error: "Item não encontrado" }, { status: 404 });
   }
   const stockRule = await prisma.systemSetting
     .findUnique({ where: { key: "stockDeductionRule" } })
-    .then((s) => s?.value ?? "on_pay");
+    .then((s: { value: string } | null) => s?.value ?? "on_pay");
 
   try {
     const body = await request.json();
@@ -106,10 +106,10 @@ export async function DELETE(
   if (!order || order.status !== "OPEN") {
     return NextResponse.json({ error: "Comanda não encontrada ou não está aberta" }, { status: 400 });
   }
-  const item = order.items.find((i) => i.id === itemId);
+  const item = order.items.find((i: { id: string }) => i.id === itemId);
   const stockRule = await prisma.systemSetting
     .findUnique({ where: { key: "stockDeductionRule" } })
-    .then((s) => s?.value ?? "on_pay");
+    .then((s: { value: string } | null) => s?.value ?? "on_pay");
   if (item && stockRule === "on_add") {
     await revertStock({
       safraId: item.safraId,

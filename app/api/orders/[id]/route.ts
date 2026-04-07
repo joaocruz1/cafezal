@@ -65,7 +65,7 @@ export async function PATCH(
       }
       const stockRule = await prisma.systemSetting
         .findUnique({ where: { key: "stockDeductionRule" } })
-        .then((s) => s?.value ?? "on_pay");
+        .then((s: { value: string } | null) => s?.value ?? "on_pay");
       if (stockRule === "on_pay") {
         for (const it of order.items) {
           const quantityKg = Number(it.quantityKg);
@@ -82,7 +82,7 @@ export async function PATCH(
         }
       }
       const total = order.items.reduce(
-        (sum, i) => sum + Number(i.unitPrice) * Number(i.quantityKg),
+        (sum: number, i: { unitPrice: unknown; quantityKg: unknown }) => sum + Number(i.unitPrice) * Number(i.quantityKg),
         0
       );
       await prisma.order.update({
@@ -141,7 +141,7 @@ export async function PATCH(
       }
       const stockRule = await prisma.systemSetting
         .findUnique({ where: { key: "stockDeductionRule" } })
-        .then((s) => s?.value ?? "on_pay");
+        .then((s: { value: string } | null) => s?.value ?? "on_pay");
       const revertedOnCancel = order.status === "OPEN" ? stockRule === "on_add" : stockRule === "on_pay";
       if (revertedOnCancel) {
         for (const it of order.items) {

@@ -83,13 +83,13 @@ export async function GET(request: NextRequest) {
     (a, b) => b.lastSale.getTime() - a.lastSale.getTime()
   );
 
-  const recentSales = orders.slice(0, 20).map((o) => ({
+  const recentSales = orders.slice(0, 20).map((o: typeof orders[number]) => ({
     id: o.id,
     identifier: o.identifier,
     sellerName: o.openedByUser?.name ?? "—",
     finalizedAt: o.finalizedAt,
     total: Number(o.total ?? 0),
-    items: o.items.map((i) => ({
+    items: o.items.map((i: typeof o.items[number]) => ({
       safraName: i.safra.name,
       kg: Number(i.quantityKg),
       bags: i.bags,

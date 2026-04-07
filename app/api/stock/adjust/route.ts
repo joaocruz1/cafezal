@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     const qty = Number(quantityKg);
     const allowNegative = await prisma.systemSetting
       .findUnique({ where: { key: "allowNegativeStock" } })
-      .then((s) => s?.value === "true");
+      .then((s: { value: string } | null) => s?.value === "true");
     const current = await getCurrentStockKg(safra.id);
     const after = current + qty;
     if (!allowNegative && after < 0) {
