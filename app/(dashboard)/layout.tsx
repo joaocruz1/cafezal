@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "../providers";
 import { useEffect, useState } from "react";
-import { clearStoredToken } from "@/lib/auth-client";
+import { clearStoredToken, fetchWithAuth } from "@/lib/auth-client";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { LoadingScreen } from "@/components/ui";
 import { Menu, X } from "lucide-react";
@@ -29,6 +29,7 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [establishmentName, setEstablishmentName] = useState<string | undefined>();
 
   useEffect(() => {
     if (loading) return;
@@ -36,6 +37,14 @@ export default function DashboardLayout({
       router.replace("/login");
     }
   }, [user, loading, router]);
+
+  useEffect(() => {
+    if (!user) return;
+    fetchWithAuth("/api/settings")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => setEstablishmentName(data?.establishmentName))
+      .catch(() => {});
+  }, [user]);
 
   function handleLogout() {
     clearStoredToken();
@@ -57,7 +66,7 @@ export default function DashboardLayout({
     <div className="min-h-screen flex bg-stone-50">
       {/* Desktop sidebar */}
       <div className="hidden lg:flex">
-        <Sidebar user={user} pathname={pathname} onLogout={handleLogout} />
+        <Sidebar user={user} pathname={pathname} onLogout={handleLogout} establishmentName={establishmentName} />
       </div>
 
       {/* Mobile sidebar overlay */}
@@ -78,7 +87,7 @@ export default function DashboardLayout({
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <Sidebar user={user} pathname={pathname} onLogout={handleLogout} onNavigate={closeSidebar} />
+        <Sidebar user={user} pathname={pathname} onLogout={handleLogout} onNavigate={closeSidebar} establishmentName={establishmentName} />
       </div>
 
       <div className="flex-1 flex flex-col min-w-0">

@@ -90,6 +90,7 @@ export default function VendasPage() {
             {connected ? "Conectado" : "Desconectado"}
           </Badge>
           <Select
+            aria-label="Periodo"
             value={period}
             onChange={(e) => setPeriod(e.target.value)}
             options={[{ value: "today", label: "Hoje" }, { value: "week", label: "Ultimos 7 dias" }]}
@@ -139,7 +140,7 @@ export default function VendasPage() {
                     ))}
                   </div>
                   {sale.finalizedAt && (
-                    <div className="text-xs text-stone-400 mt-0.5">{new Date(sale.finalizedAt).toLocaleString("pt-BR")}</div>
+                    <div className="text-xs text-stone-500 mt-0.5">{new Date(sale.finalizedAt).toLocaleString("pt-BR")}</div>
                   )}
                 </li>
               ))}

@@ -40,7 +40,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex">
+    <main id="main-content" className="min-h-screen flex">
       {/* Left hero section */}
       <div className="hidden lg:flex lg:w-[55%] bg-gradient-to-br from-amber-900 via-stone-900 to-stone-950 relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_40%,rgba(120,53,15,0.3),transparent_60%)]" />
@@ -122,11 +122,11 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <p className="mt-8 text-center text-xs text-stone-400">
+          <p className="mt-8 text-center text-xs text-stone-500">
             Cafezal — Sistema de Gestao
           </p>
         </div>
       </div>
-    </div>
+    </main>
   );
 }

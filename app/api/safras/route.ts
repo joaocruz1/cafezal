@@ -34,6 +34,12 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    if (Number(pricePerKg) <= 0) {
+      return NextResponse.json({ error: "Preço por kg deve ser maior que zero" }, { status: 400 });
+    }
+    if (Number(kgPerBag) <= 0) {
+      return NextResponse.json({ error: "Kg por saco deve ser maior que zero" }, { status: 400 });
+    }
     const safra = await prisma.coffeeHarvest.create({
       data: {
         name: String(name).trim(),

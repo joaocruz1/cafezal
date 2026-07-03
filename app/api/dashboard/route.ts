@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { businessDayBounds, shiftDateStr, todayInBusinessTimezone } from "@/lib/date";
 
 export async function GET(request: NextRequest) {
   const session = await getSession(request);
@@ -8,10 +9,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
   }
 
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todayEnd = new Date();
-  todayEnd.setHours(23, 59, 59, 999);
+  const today = todayInBusinessTimezone();
+  const { start: todayStart, end: todayEnd } = businessDayBounds(today);
 
   // Today's sales total
   const todaySalesResult = await prisma.order.aggregate({
@@ -65,12 +64,8 @@ export async function GET(request: NextRequest) {
   // Last 7 days sales
   const last7Days: { date: string; total: number }[] = [];
   for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const start = new Date(d);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(d);
-    end.setHours(23, 59, 59, 999);
+    const dateStr = shiftDateStr(today, -i);
+    const { start, end } = businessDayBounds(dateStr);
     const result = await prisma.order.aggregate({
       _sum: { total: true },
       where: {
@@ -79,7 +74,7 @@ export async function GET(request: NextRequest) {
       },
     });
     last7Days.push({
-      date: d.toISOString().slice(0, 10),
+      date: dateStr,
       total: Number(result._sum.total ?? 0),
     });
   }

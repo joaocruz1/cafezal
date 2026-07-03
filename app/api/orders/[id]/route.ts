@@ -6,6 +6,8 @@ import { auditLog } from "@/lib/audit";
 import { deductStock, revertStock, getCurrentStockKg } from "@/lib/stock";
 import { emitSocketEvent } from "@/lib/socket-emit";
 
+class InsufficientStockError extends Error {}
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -63,32 +65,44 @@ export async function PATCH(
       if (order.items.length === 0) {
         return NextResponse.json({ error: "Não é possível finalizar comanda sem itens" }, { status: 400 });
       }
-      const stockRule = await prisma.systemSetting
-        .findUnique({ where: { key: "stockDeductionRule" } })
-        .then((s: { value: string } | null) => s?.value ?? "on_pay");
-      if (stockRule === "on_pay") {
-        for (const it of order.items) {
-          const quantityKg = Number(it.quantityKg);
-          if (quantityKg > 0) {
-            const deduct = await deductStock({
-              safraId: it.safraId,
-              quantityKg,
-              userId: result.session.userId,
-            });
-            if (!deduct.ok) {
-              return NextResponse.json({ error: deduct.error ?? "Erro ao baixar estoque" }, { status: 400 });
-            }
-          }
-        }
-      }
       const total = order.items.reduce(
         (sum: number, i: { unitPrice: unknown; quantityKg: unknown }) => sum + Number(i.unitPrice) * Number(i.quantityKg),
         0
       );
-      await prisma.order.update({
-        where: { id },
-        data: { status: "FINALIZED", total, finalizedAt: new Date() },
-      });
+      try {
+        await prisma.$transaction(async (tx) => {
+          const stockRule = await tx.systemSetting
+            .findUnique({ where: { key: "stockDeductionRule" } })
+            .then((s: { value: string } | null) => s?.value ?? "on_pay");
+          if (stockRule === "on_pay") {
+            for (const it of order.items) {
+              const quantityKg = Number(it.quantityKg);
+              if (quantityKg > 0) {
+                const deduct = await deductStock(
+                  {
+                    safraId: it.safraId,
+                    quantityKg,
+                    userId: result.session.userId,
+                  },
+                  tx
+                );
+                if (!deduct.ok) {
+                  throw new InsufficientStockError(deduct.error ?? "Erro ao baixar estoque");
+                }
+              }
+            }
+          }
+          await tx.order.update({
+            where: { id },
+            data: { status: "FINALIZED", total, finalizedAt: new Date() },
+          });
+        });
+      } catch (e) {
+        if (e instanceof InsufficientStockError) {
+          return NextResponse.json({ error: e.message }, { status: 400 });
+        }
+        throw e;
+      }
       await auditLog({
         userId: result.session.userId,
         action: "order.finalize",
@@ -139,30 +153,35 @@ export async function PATCH(
       if (!reason) {
         return NextResponse.json({ error: "Motivo do cancelamento é obrigatório" }, { status: 400 });
       }
-      const stockRule = await prisma.systemSetting
-        .findUnique({ where: { key: "stockDeductionRule" } })
-        .then((s: { value: string } | null) => s?.value ?? "on_pay");
-      const revertedOnCancel = order.status === "OPEN" ? stockRule === "on_add" : stockRule === "on_pay";
-      if (revertedOnCancel) {
-        for (const it of order.items) {
-          const quantityKg = Number(it.quantityKg);
-          if (quantityKg > 0) {
-            await revertStock({
-              safraId: it.safraId,
-              quantityKg,
-              userId: result.session.userId,
-            });
+      await prisma.$transaction(async (tx) => {
+        const stockRule = await tx.systemSetting
+          .findUnique({ where: { key: "stockDeductionRule" } })
+          .then((s: { value: string } | null) => s?.value ?? "on_pay");
+        const revertedOnCancel = order.status === "OPEN" ? stockRule === "on_add" : stockRule === "on_pay";
+        if (revertedOnCancel) {
+          for (const it of order.items) {
+            const quantityKg = Number(it.quantityKg);
+            if (quantityKg > 0) {
+              await revertStock(
+                {
+                  safraId: it.safraId,
+                  quantityKg,
+                  userId: result.session.userId,
+                },
+                tx
+              );
+            }
           }
         }
-      }
-      await prisma.order.update({
-        where: { id },
-        data: {
-          status: "CANCELLED",
-          cancelledAt: new Date(),
-          cancelReason: reason,
-          cancelledByUserId: result.session.userId,
-        },
+        await tx.order.update({
+          where: { id },
+          data: {
+            status: "CANCELLED",
+            cancelledAt: new Date(),
+            cancelReason: reason,
+            cancelledByUserId: result.session.userId,
+          },
+        });
       });
       await auditLog({
         userId: result.session.userId,

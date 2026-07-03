@@ -31,8 +31,11 @@ export async function POST(request: NextRequest) {
     const action = body.action as string;
 
     if (action === "open") {
-      const openingBalance = Number(body.openingBalance) ?? 0;
-      if (openingBalance < 0) {
+      if (body.openingBalance === undefined || body.openingBalance === null || body.openingBalance === "") {
+        return NextResponse.json({ error: "Informe o valor inicial" }, { status: 400 });
+      }
+      const openingBalance = Number(body.openingBalance);
+      if (Number.isNaN(openingBalance) || openingBalance < 0) {
         return NextResponse.json({ error: "Valor inicial inválido" }, { status: 400 });
       }
       const existing = await prisma.cashRegister.findFirst({ where: { status: "OPEN" } });

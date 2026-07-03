@@ -25,6 +25,7 @@ interface SidebarProps {
   onLogout: () => void;
   onNavigate?: () => void;
   className?: string;
+  establishmentName?: string;
 }
 
 const profileLabels: Record<string, string> = {
@@ -54,7 +55,7 @@ const navItems: NavItem[] = [
   { href: "/configuracoes", label: "Configuracoes", icon: Settings, roles: ["ADMIN", "GERENTE"] },
 ];
 
-export function Sidebar({ user, pathname, onLogout, onNavigate, className = "" }: SidebarProps) {
+export function Sidebar({ user, pathname, onLogout, onNavigate, className = "", establishmentName }: SidebarProps) {
   const initials = user.name
     .split(" ")
     .map((n) => n[0])
@@ -64,8 +65,6 @@ export function Sidebar({ user, pathname, onLogout, onNavigate, className = "" }
 
   return (
     <aside
-      role="navigation"
-      aria-label="Menu principal"
       className={`w-56 bg-stone-900 text-stone-300 flex flex-col flex-shrink-0 ${className}`}
     >
       <div className="p-4 border-b border-stone-800">
@@ -77,9 +76,12 @@ export function Sidebar({ user, pathname, onLogout, onNavigate, className = "" }
           <Coffee className="h-6 w-6 text-amber-500" />
           <span className="font-bold text-lg tracking-tight">Cafezal</span>
         </Link>
+        {establishmentName && (
+          <p className="mt-0.5 pl-8 text-xs text-stone-400 truncate">{establishmentName}</p>
+        )}
       </div>
 
-      <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
+      <nav aria-label="Menu principal" className="flex-1 p-2 space-y-0.5 overflow-y-auto">
         {navItems
           .filter((item) => !item.roles || item.roles.includes(user.profile))
           .map((item) => {

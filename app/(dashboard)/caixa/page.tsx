@@ -54,6 +54,7 @@ export default function CaixaPage() {
   useEffect(() => { loadOpen(); loadHistory(); }, [loadOpen, loadHistory]);
 
   async function openCashRegister() {
+    if (openingBalance.trim() === "") { toast.error("Informe o valor inicial"); return; }
     const val = Number(openingBalance);
     if (Number.isNaN(val) || val < 0) { toast.error("Valor inicial invalido"); return; }
     setLoading(true);
