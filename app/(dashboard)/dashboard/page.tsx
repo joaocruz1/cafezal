@@ -218,7 +218,7 @@ export default function DashboardPage() {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-stone-700">{o.identifier}</p>
-                    <p className="text-xs text-stone-400">
+                    <p className="text-xs text-stone-500">
                       {new Date(o.openedAt).toLocaleString("pt-BR")}
                     </p>
                   </div>

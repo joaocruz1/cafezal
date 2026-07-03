@@ -41,6 +41,12 @@ export async function PATCH(
       minStockKg?: number;
       active?: boolean;
     } = {};
+    if (pricePerKg !== undefined && Number(pricePerKg) <= 0) {
+      return NextResponse.json({ error: "Preço por kg deve ser maior que zero" }, { status: 400 });
+    }
+    if (kgPerBag !== undefined && Number(kgPerBag) <= 0) {
+      return NextResponse.json({ error: "Kg por saco deve ser maior que zero" }, { status: 400 });
+    }
     if (name !== undefined) data.name = String(name).trim();
     if (year !== undefined) data.year = Number(year);
     if (pricePerKg !== undefined) data.pricePerKg = Number(pricePerKg);

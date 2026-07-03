@@ -18,6 +18,7 @@ import {
   ShoppingCart,
   Plus,
   Trash2,
+  Pencil,
   CreditCard,
   XCircle,
   CheckCircle,
@@ -104,6 +105,10 @@ export default function PdvPage() {
   const [addItemModal, setAddItemModal] = useState<Safra | null>(null);
   const [addItemMode, setAddItemMode] = useState<"kg" | "bags">("kg");
   const [addItemQty, setAddItemQty] = useState("");
+
+  const [editItemModal, setEditItemModal] = useState<OrderItem | null>(null);
+  const [editItemQty, setEditItemQty] = useState("");
+  const [editItemLoading, setEditItemLoading] = useState(false);
 
   const [safraSearch, setSafraSearch] = useState("");
 
@@ -206,6 +211,50 @@ export default function PdvPage() {
       toast.success("Item removido");
     } catch {
       toast.error("Erro ao remover item");
+    }
+  }
+
+  function openEditItem(item: OrderItem) {
+    setEditItemModal(item);
+    setEditItemQty(item.quantityKg);
+  }
+
+  async function submitEditItem() {
+    if (!currentOrder || !editItemModal) return;
+    const qty = Number(editItemQty);
+    if (!qty || qty <= 0) {
+      toast.error("Informe uma quantidade válida");
+      return;
+    }
+    setEditItemLoading(true);
+    try {
+      const res = await fetchWithAuth(
+        `/api/orders/${currentOrder.id}/items/${editItemModal.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ quantityKg: qty }),
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error || "Erro ao atualizar item");
+        return;
+      }
+      setCurrentOrder((o) =>
+        o
+          ? {
+              ...o,
+              items: data.deleted
+                ? o.items.filter((i) => i.id !== editItemModal.id)
+                : o.items.map((i) => (i.id === editItemModal.id ? data : i)),
+            }
+          : o
+      );
+      setEditItemModal(null);
+      toast.success("Item atualizado");
+    } finally {
+      setEditItemLoading(false);
     }
   }
 
@@ -382,6 +431,7 @@ export default function PdvPage() {
             <div className="space-y-3">
               {/* Select open orders (primary action) */}
               <Select
+                aria-label="Selecionar comanda aberta"
                 value={currentOrder?.id ?? ""}
                 onChange={async (e) => {
                   const id = e.target.value;
@@ -485,7 +535,7 @@ export default function PdvPage() {
                               {s.name}
                             </span>
                           </div>
-                          <span className="text-xs text-stone-400">{s.year}</span>
+                          <span className="text-xs text-stone-500">{s.year}</span>
                         </div>
 
                         <div className="text-lg font-bold text-amber-800 mb-2">
@@ -502,7 +552,7 @@ export default function PdvPage() {
                           {stockBadge(s.currentStockKg, minStock)}
                         </div>
 
-                        <div className="mt-1 text-xs text-stone-400">
+                        <div className="mt-1 text-xs text-stone-500">
                           {s.currentStockKg.toFixed(1)} kg em estoque
                         </div>
                       </button>
@@ -638,14 +688,24 @@ export default function PdvPage() {
                         R$ {fmt(subtotal)}
                       </span>
                       {currentOrder.status === "OPEN" && (
-                        <button
-                          type="button"
-                          onClick={() => removeItem(i.id)}
-                          className="p-1.5 rounded-[var(--radius-md)] text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors focus-visible:ring-2 focus-visible:ring-red-400"
-                          aria-label={`Remover ${i.safra.name}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => openEditItem(i)}
+                            className="p-1.5 rounded-[var(--radius-md)] text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors focus-visible:ring-2 focus-visible:ring-stone-400"
+                            aria-label={`Editar quantidade de ${i.safra.name}`}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeItem(i.id)}
+                            className="p-1.5 rounded-[var(--radius-md)] text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors focus-visible:ring-2 focus-visible:ring-red-400"
+                            aria-label={`Remover ${i.safra.name}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </>
                       )}
                     </div>
                   </li>
@@ -694,7 +754,7 @@ export default function PdvPage() {
               )}
             </div>
 
-            <div className="text-xs text-stone-400">
+            <div className="text-xs text-stone-500">
               Estoque: {addItemModal.currentStockKg.toFixed(1)} kg
             </div>
 
@@ -763,6 +823,49 @@ export default function PdvPage() {
                     R$ {fmt(addItemPreview.total)}
                   </span>
                 </p>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      {/* ============= EDIT ITEM MODAL ============= */}
+      <Modal
+        open={!!editItemModal}
+        onClose={() => setEditItemModal(null)}
+        title={editItemModal ? `Editar quantidade: ${editItemModal.safra.name}` : ""}
+        footer={
+          <>
+            <Button type="button" variant="secondary" onClick={() => setEditItemModal(null)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={submitEditItem}
+              icon={Pencil}
+              disabled={!editItemQty || Number(editItemQty) <= 0 || editItemLoading}
+              loading={editItemLoading}
+            >
+              Salvar
+            </Button>
+          </>
+        }
+      >
+        {editItemModal && (
+          <div className="space-y-4">
+            <Input
+              type="number"
+              step="0.01"
+              min="0"
+              label="Quantidade (kg)"
+              value={editItemQty}
+              onChange={(e) => setEditItemQty(e.target.value)}
+            />
+            {editItemQty && Number(editItemQty) > 0 && (
+              <div className="rounded-[var(--radius-md)] bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-800">
+                {Number(editItemQty).toFixed(2)} kg × R$ {fmt(editItemModal.unitPrice)}/kg ={" "}
+                <span className="font-bold">
+                  R$ {fmt(Number(editItemQty) * Number(editItemModal.unitPrice))}
+                </span>
               </div>
             )}
           </div>

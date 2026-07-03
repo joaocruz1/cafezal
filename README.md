@@ -34,8 +34,10 @@ Sistema de gestão com comandas, caixa, estoque, relatórios, usuários e permis
 5. **Aplicação:**
    ```bash
    npm install
-   npm run dev
+   npm run dev:all
    ```
+   Isso sobe o Next.js e o servidor Socket.io (usado pela tela "Vendas em tempo real") juntos. Se rodar só `npm run dev`, o socket não sobe e essa tela fica "Desconectado".
+
    Acesse [http://localhost:3000](http://localhost:3000), faça login e use o PDV em **PDV / Comandas**.
 
 ## Perfis
@@ -45,7 +47,9 @@ Sistema de gestão com comandas, caixa, estoque, relatórios, usuários e permis
 
 ## Scripts
 
-- `npm run dev` — servidor de desenvolvimento
+- `npm run dev` — servidor de desenvolvimento (só Next.js)
+- `npm run dev:all` — Next.js + servidor Socket.io juntos (recomendado)
+- `npm run server` — só o servidor Socket.io (`server.js`)
 - `npm run build` — build de produção
 - `npm run start` — servidor de produção
 - `npm run seed` — criar usuário admin inicial (requer banco e `prisma generate`)

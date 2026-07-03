@@ -239,6 +239,7 @@ export default function SafrasPage() {
               <Input
                 type="number"
                 step="0.01"
+                min="0.01"
                 label="Preco por kg (R$)"
                 required
                 placeholder="0,00"
@@ -248,6 +249,7 @@ export default function SafrasPage() {
               <Input
                 type="number"
                 step="0.01"
+                min="0.01"
                 label="Kg por saco"
                 required
                 placeholder="60"
