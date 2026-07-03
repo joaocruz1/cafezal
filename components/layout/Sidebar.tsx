@@ -17,6 +17,7 @@ import {
   Contact,
   PackagePlus,
   Truck,
+  HelpCircle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import type { LucideIcon } from "lucide-react";
@@ -61,6 +62,7 @@ const navItems: NavItem[] = [
   { href: "/relatorios", label: "Relatorios", icon: BarChart3, roles: ["ADMIN", "GERENTE", "FINANCEIRO", "ESTOQUE"] },
   { href: "/usuarios", label: "Usuarios", icon: Users, roles: ["ADMIN", "GERENTE"] },
   { href: "/configuracoes", label: "Configuracoes", icon: Settings, roles: ["ADMIN", "GERENTE"] },
+  { href: "/guia", label: "Guia do Sistema", icon: HelpCircle },
 ];
 
 export function Sidebar({ user, pathname, onLogout, onNavigate, className = "", establishmentName }: SidebarProps) {
