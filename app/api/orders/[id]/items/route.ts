@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { vendedorOrAbove } from "@/lib/permissions";
 import { deductStock } from "@/lib/stock";
+import { deductVendorStock } from "@/lib/vendor-stock";
 import { emitSocketEvent } from "@/lib/socket-emit";
 
 export async function POST(
@@ -26,11 +27,11 @@ export async function POST(
     const body = await request.json();
     const { safraId, quantityKg, bags, observation } = body;
     if (!safraId) {
-      return NextResponse.json({ error: "Safra é obrigatória" }, { status: 400 });
+      return NextResponse.json({ error: "Saco é obrigatório" }, { status: 400 });
     }
     const safra = await prisma.coffeeHarvest.findUnique({ where: { id: String(safraId) } });
     if (!safra || !safra.active) {
-      return NextResponse.json({ error: "Safra não encontrada ou inativa" }, { status: 400 });
+      return NextResponse.json({ error: "Saco não encontrado ou inativo" }, { status: 400 });
     }
 
     let qtyKg = 0;
@@ -50,11 +51,20 @@ export async function POST(
       .findUnique({ where: { key: "stockDeductionRule" } })
       .then((s: { value: string } | null) => s?.value ?? "on_pay");
     if (stockRule === "on_add") {
-      const deduct = await deductStock({
-        safraId: safra.id,
-        quantityKg: qtyKg,
-        userId: result.session.userId,
-      });
+      const deduct =
+        order.sellerStockLayer === "VENDOR"
+          ? await deductVendorStock({
+              vendorUserId: order.openedByUserId,
+              safraId: safra.id,
+              quantityKg: qtyKg,
+              userId: result.session.userId,
+              orderId,
+            })
+          : await deductStock({
+              safraId: safra.id,
+              quantityKg: qtyKg,
+              userId: result.session.userId,
+            });
       if (!deduct.ok) {
         return NextResponse.json({ error: deduct.error ?? "Erro ao baixar estoque" }, { status: 400 });
       }

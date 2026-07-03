@@ -9,9 +9,12 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const safra = await prisma.coffeeHarvest.findUnique({ where: { id } });
+  const safra = await prisma.coffeeHarvest.findUnique({
+    where: { id },
+    include: { category: { select: { id: true, name: true } } },
+  });
   if (!safra) {
-    return NextResponse.json({ error: "Safra não encontrada" }, { status: 404 });
+    return NextResponse.json({ error: "Saco não encontrado" }, { status: 404 });
   }
   return NextResponse.json(safra);
 }
@@ -28,11 +31,11 @@ export async function PATCH(
   const { id } = await params;
   const safra = await prisma.coffeeHarvest.findUnique({ where: { id } });
   if (!safra) {
-    return NextResponse.json({ error: "Safra não encontrada" }, { status: 404 });
+    return NextResponse.json({ error: "Saco não encontrado" }, { status: 404 });
   }
   try {
     const body = await request.json();
-    const { name, year, pricePerKg, kgPerBag, minStockKg, active } = body;
+    const { name, year, pricePerKg, kgPerBag, minStockKg, active, categoryId } = body;
     const data: {
       name?: string;
       year?: number;
@@ -40,6 +43,7 @@ export async function PATCH(
       kgPerBag?: number;
       minStockKg?: number;
       active?: boolean;
+      categoryId?: string | null;
     } = {};
     if (pricePerKg !== undefined && Number(pricePerKg) <= 0) {
       return NextResponse.json({ error: "Preço por kg deve ser maior que zero" }, { status: 400 });
@@ -47,12 +51,19 @@ export async function PATCH(
     if (kgPerBag !== undefined && Number(kgPerBag) <= 0) {
       return NextResponse.json({ error: "Kg por saco deve ser maior que zero" }, { status: 400 });
     }
+    if (categoryId !== undefined && categoryId !== null) {
+      const category = await prisma.category.findUnique({ where: { id: String(categoryId) } });
+      if (!category || !category.active) {
+        return NextResponse.json({ error: "Categoria não encontrada ou inativa" }, { status: 400 });
+      }
+    }
     if (name !== undefined) data.name = String(name).trim();
     if (year !== undefined) data.year = Number(year);
     if (pricePerKg !== undefined) data.pricePerKg = Number(pricePerKg);
     if (kgPerBag !== undefined) data.kgPerBag = Number(kgPerBag);
     if (minStockKg !== undefined) data.minStockKg = Math.max(0, Number(minStockKg));
     if (active !== undefined) data.active = Boolean(active);
+    if (categoryId !== undefined) data.categoryId = categoryId === null ? null : String(categoryId);
     if (Object.keys(data).length === 0) {
       const s = await prisma.coffeeHarvest.findUnique({ where: { id } });
       return NextResponse.json(s);
@@ -73,7 +84,7 @@ export async function PATCH(
     return NextResponse.json(updated);
   } catch (e) {
     console.error(e);
-    return NextResponse.json({ error: "Erro ao atualizar safra" }, { status: 500 });
+    return NextResponse.json({ error: "Erro ao atualizar saco" }, { status: 500 });
   }
 }
 
@@ -92,11 +103,11 @@ export async function DELETE(
     include: { orderItems: true, stockMovements: true },
   });
   if (!safra) {
-    return NextResponse.json({ error: "Safra não encontrada" }, { status: 404 });
+    return NextResponse.json({ error: "Saco não encontrado" }, { status: 404 });
   }
   if (safra.orderItems.length > 0 || safra.stockMovements.length > 0) {
     return NextResponse.json(
-      { error: "Não é possível excluir safra com vendas ou movimentações de estoque" },
+      { error: "Não é possível excluir saco com vendas ou movimentações de estoque" },
       { status: 400 }
     );
   }
@@ -106,7 +117,7 @@ export async function DELETE(
     action: "safra.delete",
     entityType: "CoffeeHarvest",
     entityId: String(id),
-    summary: `Safra excluída: ${safra.name}`,
+    summary: `Saco excluído: ${safra.name}`,
   });
   return NextResponse.json({ ok: true });
 }

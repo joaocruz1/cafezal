@@ -66,7 +66,7 @@ export default function LoginPage() {
             </div>
             <div>
               <p className="text-2xl font-bold text-amber-300">Estoque</p>
-              <p>Controle de safras</p>
+              <p>Controle de sacos</p>
             </div>
             <div>
               <p className="text-2xl font-bold text-amber-300">Caixa</p>

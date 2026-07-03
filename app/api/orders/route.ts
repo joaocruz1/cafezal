@@ -39,8 +39,11 @@ export async function GET(request: NextRequest) {
     include: {
       openedByUser: { select: { id: true, name: true } },
       cancelledByUser: { select: { id: true, name: true } },
+      customer: { select: { id: true, name: true } },
       items: { include: { safra: { select: { id: true, name: true } } } },
       payments: true,
+      review: true,
+      invoice: { select: { id: true, fileName: true, fileSizeBytes: true, uploadedAt: true } },
     },
   });
   return NextResponse.json(orders);
@@ -58,14 +61,25 @@ export async function POST(request: NextRequest) {
     if (!identifier) {
       return NextResponse.json({ error: "Identificador da comanda é obrigatório" }, { status: 400 });
     }
+    let customerId: string | null = null;
+    if (body.customerId) {
+      const customer = await prisma.customer.findUnique({ where: { id: String(body.customerId) } });
+      if (!customer || !customer.active) {
+        return NextResponse.json({ error: "Cliente não encontrado ou inativo" }, { status: 400 });
+      }
+      customerId = customer.id;
+    }
     const order = await prisma.order.create({
       data: {
         identifier,
         status: "OPEN",
         openedByUserId: result.session.userId,
+        customerId,
+        sellerStockLayer: result.session.profile === "VENDEDOR" ? "VENDOR" : "CENTRAL",
       },
       include: {
         openedByUser: { select: { id: true, name: true } },
+        customer: { select: { id: true, name: true } },
         items: true,
         payments: true,
       },

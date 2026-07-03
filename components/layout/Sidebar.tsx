@@ -13,6 +13,10 @@ import {
   Users,
   Settings,
   LogOut,
+  Tags,
+  Contact,
+  PackagePlus,
+  Truck,
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import type { LucideIcon } from "lucide-react";
@@ -48,7 +52,11 @@ const navItems: NavItem[] = [
   { href: "/pdv", label: "PDV", icon: ShoppingCart, roles: ["ADMIN", "GERENTE", "FINANCEIRO", "VENDEDOR"] },
   { href: "/comandas", label: "Comandas", icon: ClipboardList, roles: ["ADMIN", "GERENTE", "FINANCEIRO", "VENDEDOR"] },
   { href: "/vendas", label: "Vendas", icon: TrendingUp, roles: ["ADMIN", "GERENTE", "FINANCEIRO", "VENDEDOR"] },
-  { href: "/safras", label: "Safras & Estoque", icon: Sprout },
+  { href: "/clientes", label: "Clientes", icon: Contact, roles: ["ADMIN", "GERENTE", "FINANCEIRO", "VENDEDOR"] },
+  { href: "/safras", label: "Sacos & Estoque", icon: Sprout },
+  { href: "/categorias", label: "Categorias", icon: Tags, roles: ["ADMIN", "GERENTE"] },
+  { href: "/estoque-entrada", label: "Entrada de Estoque", icon: PackagePlus, roles: ["ADMIN", "GERENTE", "ESTOQUE"] },
+  { href: "/estoque-vendedores", label: "Estoque de Vendedores", icon: Truck, roles: ["ADMIN", "GERENTE", "ESTOQUE", "VENDEDOR"] },
   { href: "/caixa", label: "Caixa", icon: Wallet, roles: ["ADMIN", "GERENTE", "FINANCEIRO", "VENDEDOR"] },
   { href: "/relatorios", label: "Relatorios", icon: BarChart3, roles: ["ADMIN", "GERENTE", "FINANCEIRO", "ESTOQUE"] },
   { href: "/usuarios", label: "Usuarios", icon: Users, roles: ["ADMIN", "GERENTE"] },

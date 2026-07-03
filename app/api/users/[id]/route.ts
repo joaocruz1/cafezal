@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { gerenteOrAdmin } from "@/lib/permissions";
 import { auditLog } from "@/lib/audit";
+import { getVendorStockTotalsBySafra } from "@/lib/vendor-stock";
 import type { Profile } from "@prisma/client";
 
 export async function GET(
@@ -47,7 +48,18 @@ export async function PATCH(
     if (name !== undefined) data.name = String(name).trim();
     if (profile !== undefined) {
       const allowed = ["ADMIN", "GERENTE", "FINANCEIRO", "VENDEDOR", "ESTOQUE"] as const;
-      data.profile = allowed.includes(profile as (typeof allowed)[number]) ? (profile as Profile) : user.profile;
+      const nextProfile = allowed.includes(profile as (typeof allowed)[number]) ? (profile as Profile) : user.profile;
+      if (user.profile === "VENDEDOR" && nextProfile !== "VENDEDOR") {
+        const totals = await getVendorStockTotalsBySafra(user.id);
+        const hasStock = Object.values(totals).some((kg) => kg > 0.001);
+        if (hasStock) {
+          return NextResponse.json(
+            { error: "Descarregue todo o estoque do carro desse vendedor antes de trocar o perfil" },
+            { status: 400 }
+          );
+        }
+      }
+      data.profile = nextProfile;
     }
     if (active !== undefined) data.active = Boolean(active);
     if (newPassword !== undefined && String(newPassword).length >= 6) {

@@ -16,7 +16,7 @@ export async function GET(
   const { safraId } = await params;
   const safra = await prisma.coffeeHarvest.findUnique({ where: { id: safraId } });
   if (!safra) {
-    return NextResponse.json({ error: "Safra não encontrada" }, { status: 404 });
+    return NextResponse.json({ error: "Saco não encontrado" }, { status: 404 });
   }
   const currentStockKg = await getCurrentStockKg(safra.id);
   return NextResponse.json({ ...safra, currentStockKg });

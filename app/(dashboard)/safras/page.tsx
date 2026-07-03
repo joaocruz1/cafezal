@@ -10,6 +10,7 @@ import {
   Modal,
   PageContainer,
   PageTitle,
+  Select,
   Table,
   TableRow,
   TableCell,
@@ -20,6 +21,7 @@ import {
 import { toast } from "@/components/ui/Toast";
 import { Sprout, Plus, Pencil, Save, X, ArrowUpDown, AlertTriangle, Package } from "lucide-react";
 
+type Category = { id: string; name: string };
 type Safra = {
   id: string;
   name: string;
@@ -29,6 +31,8 @@ type Safra = {
   minStockKg: string;
   active: boolean;
   currentStockKg?: number | null;
+  categoryId?: string | null;
+  category?: Category | null;
 };
 type Movement = {
   id: string;
@@ -39,12 +43,36 @@ type Movement = {
   createdByUser: { name: string };
 };
 
+const movementLabels: Record<string, string> = {
+  SALE: "Venda",
+  SALE_REVERT: "Estorno",
+  ADJUSTMENT: "Ajuste",
+  ENTRY: "Entrada",
+  TRANSFER_OUT: "Transferencia (saida)",
+  TRANSFER_IN: "Transferencia (entrada)",
+};
+const movementVariants: Record<string, "danger" | "info" | "neutral" | "success" | "warning"> = {
+  SALE: "danger",
+  SALE_REVERT: "info",
+  ADJUSTMENT: "neutral",
+  ENTRY: "success",
+  TRANSFER_OUT: "warning",
+  TRANSFER_IN: "warning",
+};
+function movementLabel(type: string) {
+  return movementLabels[type] ?? type;
+}
+function movementBadgeVariant(type: string) {
+  return movementVariants[type] ?? "neutral";
+}
+
 export default function SafrasPage() {
   const { user } = useAuth();
   const canEdit = user && ["ADMIN", "GERENTE"].includes(user.profile);
   const canAdjustStock = user && ["ADMIN", "GERENTE", "ESTOQUE"].includes(user.profile);
 
   const [safras, setSafras] = useState<Safra[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [editing, setEditing] = useState<Safra | null>(null);
   const [search, setSearch] = useState("");
   const [lowOnly, setLowOnly] = useState(false);
@@ -56,6 +84,7 @@ export default function SafrasPage() {
     minStockKg: "0",
     active: true,
     initialStockKg: "",
+    categoryId: "",
   });
   const [loading, setLoading] = useState(false);
 
@@ -75,9 +104,15 @@ export default function SafrasPage() {
     }
   }, []);
 
+  const loadCategories = useCallback(async () => {
+    const res = await fetchWithAuth("/api/categories?active=true");
+    if (res.ok) setCategories(await res.json());
+  }, []);
+
   useEffect(() => {
     load();
-  }, [load]);
+    loadCategories();
+  }, [load, loadCategories]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -92,6 +127,7 @@ export default function SafrasPage() {
         kgPerBag: Number(form.kgPerBag),
         minStockKg: Number(form.minStockKg),
         active: form.active,
+        categoryId: form.categoryId || null,
       };
       const res = await fetchWithAuth(url, {
         method,
@@ -118,7 +154,7 @@ export default function SafrasPage() {
         });
       }
 
-      toast.success(editing ? "Safra atualizada" : "Safra criada");
+      toast.success(editing ? "Saco atualizado" : "Saco criado");
       setEditing(null);
       setForm({
         name: "",
@@ -128,6 +164,7 @@ export default function SafrasPage() {
         minStockKg: "0",
         active: true,
         initialStockKg: "",
+        categoryId: "",
       });
       load();
     } finally {
@@ -145,6 +182,7 @@ export default function SafrasPage() {
       minStockKg: String(s.minStockKg),
       active: s.active,
       initialStockKg: "",
+      categoryId: s.categoryId ?? "",
     });
   }
 
@@ -158,6 +196,7 @@ export default function SafrasPage() {
       minStockKg: "0",
       active: true,
       initialStockKg: "",
+      categoryId: "",
     });
   }
 
@@ -215,16 +254,16 @@ export default function SafrasPage() {
 
   return (
     <PageContainer>
-      <PageTitle title="Safras & Estoque" subtitle="Cadastro de safras, precos e controle de estoque" />
+      <PageTitle title="Sacos & Estoque" subtitle="Cadastro de sacos, precos e controle de estoque" />
 
       {canEdit && (
-        <Card title={editing ? "Editar safra" : "Nova safra"} icon={Sprout} className="mb-6">
+        <Card title={editing ? "Editar saco" : "Novo saco"} icon={Sprout} className="mb-6">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               <Input
                 label="Nome"
                 required
-                placeholder="Ex: Safra 2024/2025"
+                placeholder="Ex: Cafe Especial"
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               />
@@ -265,6 +304,12 @@ export default function SafrasPage() {
                 value={form.minStockKg}
                 onChange={(e) => setForm((f) => ({ ...f, minStockKg: e.target.value }))}
               />
+              <Select
+                label="Categoria"
+                value={form.categoryId}
+                onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}
+                options={[{ value: "", label: "Sem categoria" }, ...categories.map((c) => ({ value: c.id, label: c.name }))]}
+              />
               {!editing && (
                 <Input
                   type="number"
@@ -289,7 +334,7 @@ export default function SafrasPage() {
             </label>
             <div className="flex gap-2">
               <Button type="submit" disabled={loading} loading={loading} icon={editing ? Save : Plus}>
-                {editing ? "Salvar" : "Criar safra"}
+                {editing ? "Salvar" : "Criar saco"}
               </Button>
               {editing && (
                 <Button type="button" variant="secondary" icon={X} onClick={cancelEdit}>
@@ -302,7 +347,7 @@ export default function SafrasPage() {
       )}
 
       <Card
-        title="Safras"
+        title="Sacos"
         icon={Sprout}
         headerActions={
           <div className="flex items-center gap-3 flex-wrap">
@@ -319,7 +364,7 @@ export default function SafrasPage() {
             <SearchInput
               value={search}
               onChange={setSearch}
-              placeholder="Buscar safra..."
+              placeholder="Buscar saco..."
               className="w-full sm:w-72"
             />
           </div>
@@ -327,7 +372,8 @@ export default function SafrasPage() {
       >
         <Table
           headers={[
-            "Safra",
+            "Saco",
+            "Categoria",
             "Ano",
             "Preco/kg",
             "Kg/saco",
@@ -336,12 +382,15 @@ export default function SafrasPage() {
             "Status",
             ...(canEdit || canAdjustStock ? ["Acoes"] : []),
           ]}
-          emptyMessage={lowOnly ? "Nenhuma safra com estoque baixo." : "Nenhuma safra cadastrada."}
+          emptyMessage={lowOnly ? "Nenhum saco com estoque baixo." : "Nenhum saco cadastrado."}
           isEmpty={filtered.length === 0}
         >
           {filtered.map((s) => (
             <TableRow key={s.id} className={isLow(s) ? "bg-amber-50/50" : ""}>
               <TableCell className="font-medium">{s.name}</TableCell>
+              <TableCell>
+                {s.category ? <Badge variant="info">{s.category.name}</Badge> : <span className="text-stone-400">—</span>}
+              </TableCell>
               <TableCell>{s.year}</TableCell>
               <TableCell align="right">R$ {Number(s.pricePerKg).toFixed(2)}</TableCell>
               <TableCell align="right">{Number(s.kgPerBag).toFixed(2)}</TableCell>
@@ -437,11 +486,8 @@ export default function SafrasPage() {
                 movements.map((m) => (
                   <li key={m.id} className="flex justify-between py-1.5 border-b border-stone-50 last:border-0">
                     <span className="text-stone-600">
-                      <Badge
-                        variant={m.type === "SALE" ? "danger" : m.type === "SALE_REVERT" ? "info" : "neutral"}
-                        className="mr-2"
-                      >
-                        {m.type === "SALE" ? "Venda" : m.type === "SALE_REVERT" ? "Estorno" : "Ajuste"}
+                      <Badge variant={movementBadgeVariant(m.type)} className="mr-2">
+                        {movementLabel(m.type)}
                       </Badge>
                       {m.reason || ""} ({m.createdByUser?.name}, {new Date(m.createdAt).toLocaleString("pt-BR")})
                     </span>

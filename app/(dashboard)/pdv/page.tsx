@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuth } from "../../providers";
 import { useCallback, useEffect, useState } from "react";
 import { fetchWithAuth } from "@/lib/auth-client";
 import {
@@ -12,8 +13,10 @@ import {
   Badge,
   EmptyState,
   SearchInput,
+  StarRating,
 } from "@/components/ui";
 import { toast } from "@/components/ui/Toast";
+import { OrderInvoiceActions } from "@/components/OrderInvoiceActions";
 import {
   ShoppingCart,
   Plus,
@@ -52,6 +55,8 @@ type OrderItem = {
   safra: { id: string; name: string };
 };
 
+type Customer = { id: string; name: string };
+
 type Order = {
   id: string;
   identifier: string;
@@ -59,6 +64,8 @@ type Order = {
   total?: string | null;
   items: OrderItem[];
   payments: { id: string; paymentMethod: string; amount: string }[];
+  customer?: Customer | null;
+  invoice?: { fileName: string; fileSizeBytes: number; uploadedAt: string } | null;
 };
 
 const paymentMethodOptions = [
@@ -86,11 +93,15 @@ function fmt(n: number | string) {
 /* ------------------------------------------------------------------ */
 
 export default function PdvPage() {
+  const { user } = useAuth();
   /* ---- state ---- */
   const [safras, setSafras] = useState<Safra[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
   const [newIdLabel, setNewIdLabel] = useState("");
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [newCustomerId, setNewCustomerId] = useState("");
+  const [customerLoading, setCustomerLoading] = useState(false);
 
   const [paymentModal, setPaymentModal] = useState(false);
   const [paymentForm, setPaymentForm] = useState<
@@ -112,24 +123,36 @@ export default function PdvPage() {
 
   const [safraSearch, setSafraSearch] = useState("");
 
+  const [reviewOrderId, setReviewOrderId] = useState<string | null>(null);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState("");
+  const [reviewLoading, setReviewLoading] = useState(false);
+
   /* ---- data loading ---- */
   const loadSafras = useCallback(async () => {
-    const res = await fetchWithAuth("/api/stock?low=false");
+    const url = user?.profile === "VENDEDOR" ? "/api/vendor-stock?mine=true" : "/api/stock?low=false";
+    const res = await fetchWithAuth(url);
     if (res.ok) {
       const data: Safra[] = await res.json();
       setSafras(data.filter((s) => s.active));
     }
-  }, []);
+  }, [user?.profile]);
 
   const loadOrders = useCallback(async () => {
     const res = await fetchWithAuth("/api/orders?status=OPEN");
     if (res.ok) setOrders(await res.json());
   }, []);
 
+  const loadCustomers = useCallback(async () => {
+    const res = await fetchWithAuth("/api/customers?active=true");
+    if (res.ok) setCustomers(await res.json());
+  }, []);
+
   useEffect(() => {
     loadSafras();
     loadOrders();
-  }, [loadSafras, loadOrders]);
+    loadCustomers();
+  }, [loadSafras, loadOrders, loadCustomers]);
 
   const filteredSafras = safras.filter((s) =>
     s.name.toLowerCase().includes(safraSearch.toLowerCase())
@@ -143,7 +166,7 @@ export default function PdvPage() {
       const res = await fetchWithAuth("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier: id }),
+        body: JSON.stringify({ identifier: id, customerId: newCustomerId || undefined }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
@@ -154,10 +177,38 @@ export default function PdvPage() {
       setCurrentOrder(order);
       setOrders((prev) => [order, ...prev]);
       setNewIdLabel("");
+      setNewCustomerId("");
       toast.success(`Comanda "${order.identifier}" aberta`);
     } finally {
       setLoading(false);
     }
+  }
+
+  async function updateOrderCustomer(customerId: string) {
+    if (!currentOrder) return;
+    setCustomerLoading(true);
+    try {
+      const res = await fetchWithAuth(`/api/orders/${currentOrder.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set_customer", customerId: customerId || null }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error || "Erro ao atualizar cliente");
+        return;
+      }
+      setCurrentOrder(data);
+      toast.success("Cliente atualizado");
+    } finally {
+      setCustomerLoading(false);
+    }
+  }
+
+  async function refreshCurrentOrder() {
+    if (!currentOrder) return;
+    const res = await fetchWithAuth(`/api/orders/${currentOrder.id}`);
+    if (res.ok) setCurrentOrder(await res.json());
   }
 
   function openAddItem(safra: Safra) {
@@ -313,12 +364,42 @@ export default function PdvPage() {
         return;
       }
       setPaymentModal(false);
+      setReviewOrderId(currentOrder.id);
+      setReviewRating(0);
+      setReviewComment("");
       setCurrentOrder(null);
       loadOrders();
       loadSafras();
       toast.success("Pagamento registrado com sucesso!");
     } finally {
       setLoading(false);
+    }
+  }
+
+  function closeReviewModal() {
+    setReviewOrderId(null);
+    setReviewRating(0);
+    setReviewComment("");
+  }
+
+  async function submitReview() {
+    if (!reviewOrderId || reviewRating < 1) return;
+    setReviewLoading(true);
+    try {
+      const res = await fetchWithAuth(`/api/orders/${reviewOrderId}/review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rating: reviewRating, comment: reviewComment.trim() || undefined }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        toast.error(d.error || "Erro ao registrar avaliação");
+        return;
+      }
+      toast.success("Avaliação registrada");
+      closeReviewModal();
+    } finally {
+      setReviewLoading(false);
     }
   }
 
@@ -424,7 +505,7 @@ export default function PdvPage() {
   return (
     <PageContainer>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* ============= LEFT COLUMN — Comanda bar + Safra grid ============= */}
+        {/* ============= LEFT COLUMN — Comanda bar + Saco grid ============= */}
         <div className="space-y-4">
           {/* Comanda selection / creation bar */}
           <Card>
@@ -474,6 +555,32 @@ export default function PdvPage() {
                 </Button>
               </div>
 
+              {/* Customer selector */}
+              {currentOrder ? (
+                currentOrder.status !== "CANCELLED" && (
+                  <Select
+                    label="Cliente (opcional)"
+                    value={currentOrder.customer?.id ?? ""}
+                    disabled={customerLoading}
+                    onChange={(e) => updateOrderCustomer(e.target.value)}
+                    options={[
+                      { value: "", label: "Sem cliente" },
+                      ...customers.map((c) => ({ value: c.id, label: c.name })),
+                    ]}
+                  />
+                )
+              ) : (
+                <Select
+                  label="Cliente (opcional)"
+                  value={newCustomerId}
+                  onChange={(e) => setNewCustomerId(e.target.value)}
+                  options={[
+                    { value: "", label: "Sem cliente" },
+                    ...customers.map((c) => ({ value: c.id, label: c.name })),
+                  ]}
+                />
+              )}
+
               {/* Current order indicator */}
               {currentOrder && (
                 <div className="flex items-center justify-between bg-amber-50 rounded-[var(--radius-md)] px-3 py-2">
@@ -489,26 +596,26 @@ export default function PdvPage() {
             </div>
           </Card>
 
-          {/* Safra grid */}
+          {/* Saco grid */}
           {currentOrder && currentOrder.status === "OPEN" && (
             <Card
-              title="Safras disponíveis"
+              title="Sacos disponíveis"
               icon={Sprout}
             >
               <SearchInput
                 value={safraSearch}
                 onChange={setSafraSearch}
-                placeholder="Buscar safra..."
+                placeholder="Buscar saco..."
                 className="mb-4"
               />
               {filteredSafras.length === 0 ? (
                 <EmptyState
                   icon={Package}
-                  title="Nenhuma safra encontrada"
+                  title="Nenhum saco encontrado"
                   description={
                     safraSearch
                       ? "Tente outro termo de busca."
-                      : "Cadastre safras para começar a vender."
+                      : "Cadastre sacos para começar a vender."
                   }
                 />
               ) : (
@@ -582,6 +689,13 @@ export default function PdvPage() {
                 >
                   Registrar Pagamento
                 </Button>
+                <div className="flex justify-center">
+                  <OrderInvoiceActions
+                    orderId={currentOrder.id}
+                    invoice={currentOrder.invoice ?? null}
+                    onChange={refreshCurrentOrder}
+                  />
+                </div>
               </div>
             </Card>
           )}
@@ -630,21 +744,30 @@ export default function PdvPage() {
                   </div>
                 )}
                 {currentOrder.status === "FINALIZED" && (
-                  <Button
-                    onClick={() => {
-                      setPaymentModal(true);
-                      setPaymentForm([
-                        {
-                          method: "CASH",
-                          amount: fmt(Number(currentOrder.total ?? 0)),
-                        },
-                      ]);
-                    }}
-                    icon={CreditCard}
-                    className="w-full"
-                  >
-                    Registrar Pagamento
-                  </Button>
+                  <div className="space-y-2">
+                    <Button
+                      onClick={() => {
+                        setPaymentModal(true);
+                        setPaymentForm([
+                          {
+                            method: "CASH",
+                            amount: fmt(Number(currentOrder.total ?? 0)),
+                          },
+                        ]);
+                      }}
+                      icon={CreditCard}
+                      className="w-full"
+                    >
+                      Registrar Pagamento
+                    </Button>
+                    <div className="flex justify-center">
+                      <OrderInvoiceActions
+                        orderId={currentOrder.id}
+                        invoice={currentOrder.invoice ?? null}
+                        onChange={refreshCurrentOrder}
+                      />
+                    </div>
+                  </div>
                 )}
               </div>
             ) : undefined
@@ -660,7 +783,7 @@ export default function PdvPage() {
             <EmptyState
               icon={Package}
               title="Nenhum item"
-              description="Selecione uma safra à esquerda para adicionar."
+              description="Selecione um saco à esquerda para adicionar."
             />
           ) : (
             <ul className="space-y-1 flex-1 overflow-y-auto max-h-[calc(100vh-22rem)]">
@@ -1043,6 +1166,39 @@ export default function PdvPage() {
           value={cancelReason}
           onChange={(e) => setCancelReason(e.target.value)}
         />
+      </Modal>
+
+      {/* ============= REVIEW MODAL ============= */}
+      <Modal
+        open={!!reviewOrderId}
+        onClose={closeReviewModal}
+        title="Avaliar venda"
+        footer={
+          <>
+            <Button type="button" variant="secondary" onClick={closeReviewModal} disabled={reviewLoading}>
+              Pular
+            </Button>
+            <Button
+              onClick={submitReview}
+              disabled={reviewRating < 1 || reviewLoading}
+              loading={reviewLoading}
+              icon={CheckCircle}
+            >
+              Salvar avaliação
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-stone-600">Como foi essa venda?</p>
+          <StarRating value={reviewRating} onChange={setReviewRating} />
+          <Input
+            label="Comentário (opcional)"
+            placeholder="Ex: Cliente satisfeito, entrega rapida"
+            value={reviewComment}
+            onChange={(e) => setReviewComment(e.target.value)}
+          />
+        </div>
       </Modal>
     </PageContainer>
   );
