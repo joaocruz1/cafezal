@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import { vendedorOrAbove } from "@/lib/permissions";
 import { auditLog } from "@/lib/audit";
 import { deductStock, revertStock, getCurrentStockKg } from "@/lib/stock";
+import { deductVendorStock, revertVendorStock } from "@/lib/vendor-stock";
 import { emitSocketEvent } from "@/lib/socket-emit";
 
 class InsufficientStockError extends Error {}
@@ -23,8 +24,11 @@ export async function GET(
     include: {
       openedByUser: { select: { id: true, name: true } },
       cancelledByUser: { select: { id: true, name: true } },
+      customer: { select: { id: true, name: true } },
       items: { include: { safra: { select: { id: true, name: true, pricePerKg: true } } } },
       payments: true,
+      review: true,
+      invoice: { select: { id: true, fileName: true, fileSizeBytes: true, uploadedAt: true } },
     },
   });
   if (!order) {
@@ -78,14 +82,26 @@ export async function PATCH(
             for (const it of order.items) {
               const quantityKg = Number(it.quantityKg);
               if (quantityKg > 0) {
-                const deduct = await deductStock(
-                  {
-                    safraId: it.safraId,
-                    quantityKg,
-                    userId: result.session.userId,
-                  },
-                  tx
-                );
+                const deduct =
+                  order.sellerStockLayer === "VENDOR"
+                    ? await deductVendorStock(
+                        {
+                          vendorUserId: order.openedByUserId,
+                          safraId: it.safraId,
+                          quantityKg,
+                          userId: result.session.userId,
+                          orderId: id,
+                        },
+                        tx
+                      )
+                    : await deductStock(
+                        {
+                          safraId: it.safraId,
+                          quantityKg,
+                          userId: result.session.userId,
+                        },
+                        tx
+                      );
                 if (!deduct.ok) {
                   throw new InsufficientStockError(deduct.error ?? "Erro ao baixar estoque");
                 }
@@ -162,14 +178,27 @@ export async function PATCH(
           for (const it of order.items) {
             const quantityKg = Number(it.quantityKg);
             if (quantityKg > 0) {
-              await revertStock(
-                {
-                  safraId: it.safraId,
-                  quantityKg,
-                  userId: result.session.userId,
-                },
-                tx
-              );
+              if (order.sellerStockLayer === "VENDOR") {
+                await revertVendorStock(
+                  {
+                    vendorUserId: order.openedByUserId,
+                    safraId: it.safraId,
+                    quantityKg,
+                    userId: result.session.userId,
+                    orderId: id,
+                  },
+                  tx
+                );
+              } else {
+                await revertStock(
+                  {
+                    safraId: it.safraId,
+                    quantityKg,
+                    userId: result.session.userId,
+                  },
+                  tx
+                );
+              }
             }
           }
         }
@@ -196,6 +225,31 @@ export async function PATCH(
           openedByUser: { select: { id: true, name: true } },
           cancelledByUser: { select: { id: true, name: true } },
           items: true,
+          payments: true,
+        },
+      });
+      return NextResponse.json(updated);
+    }
+
+    if (action === "set_customer") {
+      if (order.status === "CANCELLED") {
+        return NextResponse.json({ error: "Não é possível alterar o cliente de uma comanda cancelada" }, { status: 400 });
+      }
+      let customerId: string | null = null;
+      if (body.customerId) {
+        const customer = await prisma.customer.findUnique({ where: { id: String(body.customerId) } });
+        if (!customer || !customer.active) {
+          return NextResponse.json({ error: "Cliente não encontrado ou inativo" }, { status: 400 });
+        }
+        customerId = customer.id;
+      }
+      const updated = await prisma.order.update({
+        where: { id },
+        data: { customerId },
+        include: {
+          openedByUser: { select: { id: true, name: true } },
+          customer: { select: { id: true, name: true } },
+          items: { include: { safra: { select: { id: true, name: true } } } },
           payments: true,
         },
       });

@@ -14,5 +14,6 @@ export { SearchInput } from "./SearchInput";
 export { Select } from "./Select";
 export { Skeleton, SkeletonCard, SkeletonTable } from "./Skeleton";
 export { Spinner } from "./Spinner";
+export { StarRating } from "./StarRating";
 export { Table, TableRow, TableCell } from "./Table";
 export { ToastProvider, toast } from "./Toast";

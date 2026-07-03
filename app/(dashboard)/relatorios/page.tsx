@@ -204,7 +204,7 @@ export default function RelatoriosPage() {
       {/* Top products tab */}
       {!loading && tab === "top" && (
         <div role="tabpanel" id="panel-top">
-          <Card title="Mais vendidos (por safra)" accent="success">
+          <Card title="Mais vendidos (por saco)" accent="success">
             {topSafras.length > 0 ? (
               <div className="h-64 mb-4">
                 <ResponsiveContainer width="100%" height="100%">
@@ -218,7 +218,7 @@ export default function RelatoriosPage() {
                 </ResponsiveContainer>
               </div>
             ) : null}
-            <Table headers={["Safra", "Kg", "Sacos", "Faturamento"]} emptyMessage="Nenhum dado no periodo." isEmpty={topSafras.length === 0}>
+            <Table headers={["Saco", "Kg", "Sacos", "Faturamento"]} emptyMessage="Nenhum dado no periodo." isEmpty={topSafras.length === 0}>
               {topSafras.map((p) => (
                 <TableRow key={p.safraId}>
                   <TableCell>{p.name}</TableCell>
@@ -275,7 +275,7 @@ export default function RelatoriosPage() {
       {!loading && tab === "low" && (
         <div role="tabpanel" id="panel-low">
           <Card title="Estoque baixo" accent="warning">
-            <Table headers={["Safra", "Estoque (kg)", "Minimo (kg)"]} emptyMessage="Nenhuma safra com estoque baixo." isEmpty={lowStock.length === 0}>
+            <Table headers={["Saco", "Estoque (kg)", "Minimo (kg)"]} emptyMessage="Nenhum saco com estoque baixo." isEmpty={lowStock.length === 0}>
               {lowStock.map((p, i) => (
                 <TableRow key={i} className="bg-amber-50/50">
                   <TableCell className="font-medium text-amber-900">{p.name}</TableCell>

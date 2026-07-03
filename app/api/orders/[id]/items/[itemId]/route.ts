@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { vendedorOrAbove } from "@/lib/permissions";
 import { revertStock } from "@/lib/stock";
+import { revertVendorStock } from "@/lib/vendor-stock";
 
 export async function PATCH(
   request: NextRequest,
@@ -29,6 +30,29 @@ export async function PATCH(
     .findUnique({ where: { key: "stockDeductionRule" } })
     .then((s: { value: string } | null) => s?.value ?? "on_pay");
 
+  const userId = result.session.userId;
+  const sellerStockLayer = order.sellerStockLayer;
+  const openedByUserId = order.openedByUserId;
+  const safraId = item.safraId;
+
+  async function revert(quantityKg: number) {
+    if (sellerStockLayer === "VENDOR") {
+      await revertVendorStock({
+        vendorUserId: openedByUserId,
+        safraId,
+        quantityKg,
+        userId,
+        orderId,
+      });
+    } else {
+      await revertStock({
+        safraId,
+        quantityKg,
+        userId,
+      });
+    }
+  }
+
   try {
     const body = await request.json();
     const { quantityKg, bags, observation } = body;
@@ -47,11 +71,7 @@ export async function PATCH(
       }
       if (newQtyKg <= 0) {
         if (stockRule === "on_add") {
-          await revertStock({
-            safraId: item.safraId,
-            quantityKg: Number(item.quantityKg),
-            userId: result.session.userId,
-          });
+          await revert(Number(item.quantityKg));
         }
         await prisma.orderItem.delete({ where: { id: itemId } });
         return NextResponse.json({ deleted: true });
@@ -59,11 +79,7 @@ export async function PATCH(
       if (stockRule === "on_add") {
         const oldKg = Number(item.quantityKg);
         if (newQtyKg < oldKg) {
-          await revertStock({
-            safraId: item.safraId,
-            quantityKg: oldKg - newQtyKg,
-            userId: result.session.userId,
-          });
+          await revert(oldKg - newQtyKg);
         }
       }
       data.quantityKg = newQtyKg;
@@ -111,11 +127,21 @@ export async function DELETE(
     .findUnique({ where: { key: "stockDeductionRule" } })
     .then((s: { value: string } | null) => s?.value ?? "on_pay");
   if (item && stockRule === "on_add") {
-    await revertStock({
-      safraId: item.safraId,
-      quantityKg: Number(item.quantityKg),
-      userId: result.session.userId,
-    });
+    if (order.sellerStockLayer === "VENDOR") {
+      await revertVendorStock({
+        vendorUserId: order.openedByUserId,
+        safraId: item.safraId,
+        quantityKg: Number(item.quantityKg),
+        userId: result.session.userId,
+        orderId,
+      });
+    } else {
+      await revertStock({
+        safraId: item.safraId,
+        quantityKg: Number(item.quantityKg),
+        userId: result.session.userId,
+      });
+    }
   }
   await prisma.orderItem.deleteMany({ where: { id: itemId, orderId } });
   return NextResponse.json({ ok: true });

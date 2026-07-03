@@ -41,6 +41,22 @@ enum StockMovementType {
   SALE
   SALE_REVERT
   ADJUSTMENT
+  ENTRY
+  TRANSFER_OUT
+  TRANSFER_IN
+}
+
+enum VendorStockMovementType {
+  LOAD
+  UNLOAD
+  SALE
+  SALE_REVERT
+  ADJUSTMENT
+}
+
+enum StockLayer {
+  CENTRAL
+  VENDOR
 }
 
 model User {
@@ -60,6 +76,10 @@ model User {
   cashMovements        CashMovement[]
   stockMovements       StockMovement[]
   auditLogs            AuditLog[]
+  orderReviews         OrderReview[]
+  orderInvoices        OrderInvoice[]
+  vendorStockAsOwner   VendorStockMovement[] @relation("VendorStockOwner")
+  vendorStockCreated   VendorStockMovement[] @relation("VendorStockCreatedBy")
 }
 
 model CoffeeHarvest {
@@ -70,11 +90,24 @@ model CoffeeHarvest {
   kgPerBag    Decimal  @db.Decimal(10, 2)
   minStockKg  Decimal  @default(0) @db.Decimal(10, 2)
   active      Boolean  @default(true)
+  categoryId  String?  @db.Uuid
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  category       Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   orderItems     OrderItem[]
   stockMovements StockMovement[]
+  vendorStockMovements VendorStockMovement[]
+}
+
+model Category {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  harvests CoffeeHarvest[]
 }
 
 model SystemSetting {
@@ -93,15 +126,78 @@ model Order {
   cancelReason      String?
   openedByUserId    String      @db.Uuid
   cancelledByUserId String?     @db.Uuid
+  customerId        String?     @db.Uuid
+  sellerStockLayer  StockLayer  @default(CENTRAL)
   total             Decimal?    @db.Decimal(10, 2)
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
 
   openedByUser    User         @relation("OrderOpenedBy", fields: [openedByUserId], references: [id], onDelete: Restrict)
   cancelledByUser User?         @relation("OrderCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: SetNull)
+  customer        Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
   items           OrderItem[]
   payments        Payment[]
   cashMovements   CashMovement[]
+  review          OrderReview?
+  invoice         OrderInvoice?
+  vendorStockMovements VendorStockMovement[]
+}
+
+model VendorStockMovement {
+  id              String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  vendorUserId    String                  @db.Uuid
+  safraId         String                  @db.Uuid
+  quantityKg      Decimal                 @db.Decimal(10, 2)
+  type            VendorStockMovementType
+  orderId         String?                 @db.Uuid
+  reason          String?
+  createdByUserId String                  @db.Uuid
+  createdAt       DateTime                @default(now())
+
+  vendor        User          @relation("VendorStockOwner", fields: [vendorUserId], references: [id], onDelete: Restrict)
+  safra         CoffeeHarvest @relation(fields: [safraId], references: [id], onDelete: Restrict)
+  order         Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  createdByUser User          @relation("VendorStockCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+}
+
+model OrderReview {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId         String   @unique @db.Uuid
+  rating          Int
+  comment         String?
+  createdByUserId String   @db.Uuid
+  createdAt       DateTime @default(now())
+
+  order         Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  createdByUser User  @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+}
+
+model OrderInvoice {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId          String   @unique @db.Uuid
+  fileName         String
+  storagePath      String   @default("db")
+  fileData         Bytes
+  fileSizeBytes    Int
+  mimeType         String   @default("application/pdf")
+  uploadedByUserId String   @db.Uuid
+  uploadedAt       DateTime @default(now())
+
+  order          Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  uploadedByUser User  @relation(fields: [uploadedByUserId], references: [id], onDelete: Restrict)
+}
+
+model Customer {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  document  String?  @unique
+  phone     String?
+  address   String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders Order[]
 }
 
 model OrderItem {

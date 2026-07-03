@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
   const safras = await prisma.coffeeHarvest.findMany({
     where: lowOnly ? {} : {},
     orderBy: [{ year: "desc" }, { name: "asc" }],
+    include: { category: { select: { id: true, name: true } } },
   });
 
   const withStock = await Promise.all(

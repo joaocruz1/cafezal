@@ -8,6 +8,9 @@
 -- =====================
 
 DROP TABLE IF EXISTS "AuditLog" CASCADE;
+DROP TABLE IF EXISTS "OrderInvoice" CASCADE;
+DROP TABLE IF EXISTS "OrderReview" CASCADE;
+DROP TABLE IF EXISTS "VendorStockMovement" CASCADE;
 DROP TABLE IF EXISTS "StockMovement" CASCADE;
 DROP TABLE IF EXISTS "CashMovement" CASCADE;
 DROP TABLE IF EXISTS "CashRegister" CASCADE;
@@ -18,6 +21,7 @@ DROP TABLE IF EXISTS "CoffeeHarvest" CASCADE;
 DROP TABLE IF EXISTS "SystemSetting" CASCADE;
 DROP TABLE IF EXISTS "User" CASCADE;
 DROP TABLE IF EXISTS "Product" CASCADE;
+DROP TABLE IF EXISTS "Customer" CASCADE;
 DROP TABLE IF EXISTS "Category" CASCADE;
 DROP TABLE IF EXISTS "_prisma_migrations" CASCADE;
 
@@ -34,6 +38,8 @@ DROP TYPE IF EXISTS "PaymentMethod" CASCADE;
 DROP TYPE IF EXISTS "CashRegisterStatus" CASCADE;
 DROP TYPE IF EXISTS "CashMovementType" CASCADE;
 DROP TYPE IF EXISTS "StockMovementType" CASCADE;
+DROP TYPE IF EXISTS "VendorStockMovementType" CASCADE;
+DROP TYPE IF EXISTS "StockLayer" CASCADE;
 
 -- =====================
 -- 2. CREATE enums
@@ -44,7 +50,9 @@ CREATE TYPE "OrderStatus" AS ENUM ('OPEN', 'FINALIZED', 'CANCELLED');
 CREATE TYPE "PaymentMethod" AS ENUM ('CASH', 'CARD', 'PIX');
 CREATE TYPE "CashRegisterStatus" AS ENUM ('OPEN', 'CLOSED');
 CREATE TYPE "CashMovementType" AS ENUM ('SALE', 'MANUAL_IN', 'MANUAL_OUT');
-CREATE TYPE "StockMovementType" AS ENUM ('SALE', 'SALE_REVERT', 'ADJUSTMENT');
+CREATE TYPE "StockMovementType" AS ENUM ('SALE', 'SALE_REVERT', 'ADJUSTMENT', 'ENTRY', 'TRANSFER_OUT', 'TRANSFER_IN');
+CREATE TYPE "VendorStockMovementType" AS ENUM ('LOAD', 'UNLOAD', 'SALE', 'SALE_REVERT', 'ADJUSTMENT');
+CREATE TYPE "StockLayer" AS ENUM ('CENTRAL', 'VENDOR');
 
 -- =====================
 -- 3. CREATE tabelas
@@ -63,6 +71,29 @@ CREATE TABLE "User" (
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
 );
 
+CREATE TABLE "Category" (
+    "id"        UUID NOT NULL DEFAULT gen_random_uuid(),
+    "name"      TEXT NOT NULL,
+    "active"    BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Category_pkey" PRIMARY KEY ("id")
+);
+
+CREATE TABLE "Customer" (
+    "id"        UUID NOT NULL DEFAULT gen_random_uuid(),
+    "name"      TEXT NOT NULL,
+    "document"  TEXT,
+    "phone"     TEXT,
+    "address"   TEXT,
+    "active"    BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Customer_pkey" PRIMARY KEY ("id")
+);
+
 CREATE TABLE "CoffeeHarvest" (
     "id"          UUID NOT NULL DEFAULT gen_random_uuid(),
     "name"        TEXT NOT NULL,
@@ -71,6 +102,7 @@ CREATE TABLE "CoffeeHarvest" (
     "kgPerBag"    DECIMAL(10,2) NOT NULL,
     "minStockKg"  DECIMAL(10,2) NOT NULL DEFAULT 0,
     "active"      BOOLEAN NOT NULL DEFAULT true,
+    "categoryId"  UUID,
     "createdAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -95,6 +127,8 @@ CREATE TABLE "Order" (
     "cancelReason"      TEXT,
     "openedByUserId"    UUID NOT NULL,
     "cancelledByUserId" UUID,
+    "customerId"        UUID,
+    "sellerStockLayer"  "StockLayer" NOT NULL DEFAULT 'CENTRAL',
     "total"             DECIMAL(10,2),
     "createdAt"         TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt"         TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -164,6 +198,45 @@ CREATE TABLE "StockMovement" (
     CONSTRAINT "StockMovement_pkey" PRIMARY KEY ("id")
 );
 
+CREATE TABLE "VendorStockMovement" (
+    "id"              UUID NOT NULL DEFAULT gen_random_uuid(),
+    "vendorUserId"    UUID NOT NULL,
+    "safraId"         UUID NOT NULL,
+    "quantityKg"      DECIMAL(10,2) NOT NULL,
+    "type"            "VendorStockMovementType" NOT NULL,
+    "orderId"         UUID,
+    "reason"          TEXT,
+    "createdByUserId" UUID NOT NULL,
+    "createdAt"       TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "VendorStockMovement_pkey" PRIMARY KEY ("id")
+);
+
+CREATE TABLE "OrderReview" (
+    "id"              UUID NOT NULL DEFAULT gen_random_uuid(),
+    "orderId"         UUID NOT NULL,
+    "rating"          INTEGER NOT NULL,
+    "comment"         TEXT,
+    "createdByUserId" UUID NOT NULL,
+    "createdAt"       TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "OrderReview_pkey" PRIMARY KEY ("id")
+);
+
+CREATE TABLE "OrderInvoice" (
+    "id"               UUID NOT NULL DEFAULT gen_random_uuid(),
+    "orderId"          UUID NOT NULL,
+    "fileName"         TEXT NOT NULL,
+    "storagePath"      TEXT NOT NULL DEFAULT 'db',
+    "fileData"         BYTEA NOT NULL,
+    "fileSizeBytes"    INTEGER NOT NULL,
+    "mimeType"         TEXT NOT NULL DEFAULT 'application/pdf',
+    "uploadedByUserId" UUID NOT NULL,
+    "uploadedAt"       TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "OrderInvoice_pkey" PRIMARY KEY ("id")
+);
+
 CREATE TABLE "AuditLog" (
     "id"         UUID NOT NULL DEFAULT gen_random_uuid(),
     "userId"     UUID,
@@ -182,6 +255,10 @@ CREATE TABLE "AuditLog" (
 
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 CREATE UNIQUE INDEX "SystemSetting_key_key" ON "SystemSetting"("key");
+CREATE UNIQUE INDEX "Category_name_key" ON "Category"("name");
+CREATE UNIQUE INDEX "Customer_document_key" ON "Customer"("document");
+CREATE UNIQUE INDEX "OrderReview_orderId_key" ON "OrderReview"("orderId");
+CREATE UNIQUE INDEX "OrderInvoice_orderId_key" ON "OrderInvoice"("orderId");
 
 -- =====================
 -- 5. FOREIGN KEYS
@@ -251,6 +328,56 @@ ALTER TABLE "AuditLog"
     ADD CONSTRAINT "AuditLog_userId_fkey"
     FOREIGN KEY ("userId") REFERENCES "User"("id")
     ON DELETE SET NULL ON UPDATE CASCADE;
+
+ALTER TABLE "CoffeeHarvest"
+    ADD CONSTRAINT "CoffeeHarvest_categoryId_fkey"
+    FOREIGN KEY ("categoryId") REFERENCES "Category"("id")
+    ON DELETE SET NULL ON UPDATE CASCADE;
+
+ALTER TABLE "Order"
+    ADD CONSTRAINT "Order_customerId_fkey"
+    FOREIGN KEY ("customerId") REFERENCES "Customer"("id")
+    ON DELETE SET NULL ON UPDATE CASCADE;
+
+ALTER TABLE "VendorStockMovement"
+    ADD CONSTRAINT "VendorStockMovement_vendorUserId_fkey"
+    FOREIGN KEY ("vendorUserId") REFERENCES "User"("id")
+    ON DELETE RESTRICT ON UPDATE CASCADE;
+
+ALTER TABLE "VendorStockMovement"
+    ADD CONSTRAINT "VendorStockMovement_safraId_fkey"
+    FOREIGN KEY ("safraId") REFERENCES "CoffeeHarvest"("id")
+    ON DELETE RESTRICT ON UPDATE CASCADE;
+
+ALTER TABLE "VendorStockMovement"
+    ADD CONSTRAINT "VendorStockMovement_orderId_fkey"
+    FOREIGN KEY ("orderId") REFERENCES "Order"("id")
+    ON DELETE SET NULL ON UPDATE CASCADE;
+
+ALTER TABLE "VendorStockMovement"
+    ADD CONSTRAINT "VendorStockMovement_createdByUserId_fkey"
+    FOREIGN KEY ("createdByUserId") REFERENCES "User"("id")
+    ON DELETE RESTRICT ON UPDATE CASCADE;
+
+ALTER TABLE "OrderReview"
+    ADD CONSTRAINT "OrderReview_orderId_fkey"
+    FOREIGN KEY ("orderId") REFERENCES "Order"("id")
+    ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE "OrderReview"
+    ADD CONSTRAINT "OrderReview_createdByUserId_fkey"
+    FOREIGN KEY ("createdByUserId") REFERENCES "User"("id")
+    ON DELETE RESTRICT ON UPDATE CASCADE;
+
+ALTER TABLE "OrderInvoice"
+    ADD CONSTRAINT "OrderInvoice_orderId_fkey"
+    FOREIGN KEY ("orderId") REFERENCES "Order"("id")
+    ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE "OrderInvoice"
+    ADD CONSTRAINT "OrderInvoice_uploadedByUserId_fkey"
+    FOREIGN KEY ("uploadedByUserId") REFERENCES "User"("id")
+    ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- =====================
 -- 6. SEED dados iniciais

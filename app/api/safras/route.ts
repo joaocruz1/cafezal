@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
   const safras = await prisma.coffeeHarvest.findMany({
     where,
     orderBy: [{ year: "desc" }, { name: "asc" }],
+    include: { category: { select: { id: true, name: true } } },
   });
   return NextResponse.json(safras);
 }
@@ -27,7 +28,7 @@ export async function POST(request: NextRequest) {
   }
   try {
     const body = await request.json();
-    const { name, year, pricePerKg, kgPerBag, minStockKg, active } = body;
+    const { name, year, pricePerKg, kgPerBag, minStockKg, active, categoryId } = body;
     if (!name || year == null || pricePerKg == null || kgPerBag == null) {
       return NextResponse.json(
         { error: "Nome, ano, preço por kg e kg por saco são obrigatórios" },
@@ -40,6 +41,12 @@ export async function POST(request: NextRequest) {
     if (Number(kgPerBag) <= 0) {
       return NextResponse.json({ error: "Kg por saco deve ser maior que zero" }, { status: 400 });
     }
+    if (categoryId) {
+      const category = await prisma.category.findUnique({ where: { id: String(categoryId) } });
+      if (!category || !category.active) {
+        return NextResponse.json({ error: "Categoria não encontrada ou inativa" }, { status: 400 });
+      }
+    }
     const safra = await prisma.coffeeHarvest.create({
       data: {
         name: String(name).trim(),
@@ -48,6 +55,7 @@ export async function POST(request: NextRequest) {
         kgPerBag: Number(kgPerBag),
         minStockKg: Math.max(0, Number(minStockKg) || 0),
         active: active !== false,
+        categoryId: categoryId ? String(categoryId) : null,
       },
     });
     await auditLog({
@@ -55,11 +63,11 @@ export async function POST(request: NextRequest) {
       action: "safra.create",
       entityType: "CoffeeHarvest",
       entityId: String(safra.id),
-      summary: `Safra criada: ${safra.name}`,
+      summary: `Saco criado: ${safra.name}`,
     });
     return NextResponse.json(safra);
   } catch (e) {
     console.error(e);
-    return NextResponse.json({ error: "Erro ao criar safra" }, { status: 500 });
+    return NextResponse.json({ error: "Erro ao criar saco" }, { status: 500 });
   }
 }

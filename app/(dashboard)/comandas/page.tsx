@@ -17,7 +17,8 @@ import {
   EmptyState,
 } from "@/components/ui";
 import { toast } from "@/components/ui/Toast";
-import { ClipboardList, Filter, RefreshCw } from "lucide-react";
+import { OrderInvoiceActions } from "@/components/OrderInvoiceActions";
+import { Filter, RefreshCw } from "lucide-react";
 
 type Order = {
   id: string;
@@ -26,6 +27,7 @@ type Order = {
   total?: string | null;
   openedAt: string;
   openedByUser: { name: string };
+  invoice: { fileName: string; fileSizeBytes: number; uploadedAt: string } | null;
 };
 
 const statusOptions = [
@@ -95,7 +97,7 @@ export default function ComandasPage() {
         <SearchInput value={search} onChange={setSearch} placeholder="Buscar por identificador..." className="w-full sm:w-72" />
       }>
         <Table
-          headers={["Identificador", "Status", "Total", "Aberta por", "Data"]}
+          headers={["Identificador", "Status", "Total", "Aberta por", "Data", "Nota"]}
           emptyMessage="Nenhuma comanda encontrada."
           isEmpty={paged.length === 0}
           currentPage={page}
@@ -111,6 +113,13 @@ export default function ComandasPage() {
                 <TableCell align="right">{o.total != null ? `R$ ${Number(o.total).toFixed(2)}` : "—"}</TableCell>
                 <TableCell>{o.openedByUser?.name ?? "—"}</TableCell>
                 <TableCell className="text-stone-500 text-sm">{new Date(o.openedAt).toLocaleString("pt-BR")}</TableCell>
+                <TableCell>
+                  {o.status === "FINALIZED" ? (
+                    <OrderInvoiceActions orderId={o.id} invoice={o.invoice ?? null} onChange={load} />
+                  ) : (
+                    "—"
+                  )}
+                </TableCell>
               </TableRow>
             );
           })}

@@ -6,6 +6,24 @@ import { getCurrentStockKg } from "@/lib/stock";
 import { auditLog } from "@/lib/audit";
 import { emitSocketEvent } from "@/lib/socket-emit";
 
+export async function GET(request: NextRequest) {
+  const session = await getSession(request);
+  const result = estoqueOrAbove(session);
+  if (!result.ok) {
+    return NextResponse.json({ error: "Não autorizado" }, { status: result.status });
+  }
+  const entries = await prisma.stockMovement.findMany({
+    where: { type: "ENTRY" },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+    include: {
+      safra: { select: { id: true, name: true } },
+      createdByUser: { select: { name: true } },
+    },
+  });
+  return NextResponse.json(entries);
+}
+
 export async function POST(request: NextRequest) {
   const session = await getSession(request);
   const result = estoqueOrAbove(session);
@@ -15,47 +33,37 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { safraId, quantityKg, reason } = body;
-    if (!safraId || quantityKg == null || Number(quantityKg) === 0) {
+    if (!safraId || quantityKg == null || Number(quantityKg) <= 0) {
       return NextResponse.json(
-        { error: "Saco e quantidade em kg (diferente de zero) são obrigatórios" },
+        { error: "Saco e quantidade em kg (maior que zero) são obrigatórios" },
         { status: 400 }
       );
     }
     const reasonStr = String(reason ?? "").trim();
     if (!reasonStr) {
-      return NextResponse.json({ error: "Motivo do ajuste é obrigatório" }, { status: 400 });
+      return NextResponse.json({ error: "Motivo/nota da entrada é obrigatório" }, { status: 400 });
     }
     const safra = await prisma.coffeeHarvest.findUnique({ where: { id: String(safraId) } });
     if (!safra) {
       return NextResponse.json({ error: "Saco não encontrado" }, { status: 404 });
     }
     const qty = Number(quantityKg);
-    const allowNegative = await prisma.systemSetting
-      .findUnique({ where: { key: "allowNegativeStock" } })
-      .then((s: { value: string } | null) => s?.value === "true");
     const current = await getCurrentStockKg(safra.id);
-    const after = current + qty;
-    if (!allowNegative && after < 0) {
-      return NextResponse.json(
-        { error: `Ajuste resultaria em estoque negativo (atual: ${current.toFixed(2)} kg)` },
-        { status: 400 }
-      );
-    }
     await prisma.stockMovement.create({
       data: {
         safraId: safra.id,
         quantityKg: qty,
-        type: "ADJUSTMENT",
+        type: "ENTRY",
         reason: reasonStr,
         createdByUserId: result.session.userId,
       },
     });
     await auditLog({
       userId: result.session.userId,
-      action: "stock.adjust",
+      action: "stock.entry",
       entityType: "CoffeeHarvest",
       entityId: String(safra.id),
-      summary: `Ajuste: ${qty > 0 ? "+" : ""}${qty} kg — ${reasonStr}. Estoque anterior: ${current}`,
+      summary: `Entrada de estoque: +${qty} kg — ${reasonStr}`,
     });
     const newStock = await getCurrentStockKg(safra.id);
     await emitSocketEvent("stock:update", {
@@ -70,6 +78,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (e) {
     console.error(e);
-    return NextResponse.json({ error: "Erro ao ajustar estoque" }, { status: 500 });
+    return NextResponse.json({ error: "Erro ao registrar entrada de estoque" }, { status: 500 });
   }
 }
